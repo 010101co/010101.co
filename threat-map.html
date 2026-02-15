@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="robots" content="index, follow" />
+  <title>010101.co — Threat Map Live</title>
+  <meta name="description" content="Threat Map Live — visualisation en temps réel (mode simulation) des signaux de menace. 010101.co — Cyber Intelligence • Offensive Security (autorisé) • Absolute Control." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="threat-map.css" />
+  <link rel="icon" href="assets/favicon.png" />
+</head>
+
+<body class="theme-neon">
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="assets/logo.png" alt="010101.co" class="brand__logo" />
+      <div class="brand__txt">
+        <div class="brand__name">010101.co</div>
+        <div class="brand__tag">CYBER INTELLIGENCE • OFFENSIVE SECURITY • ABSOLUTE CONTROL</div>
+      </div>
+    </a>
+
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="/">Accueil</a>
+      <a class="active" href="threat-map.html">Threat Map Live</a>
+      <a href="/#services">Services</a>
+      <a href="/#contact" class="btn btn--ghost">Demander un audit</a>
+    </nav>
+
+    <button class="burger" aria-label="Menu" aria-expanded="false" aria-controls="mobileNav">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero__grid">
+
+        <div class="hero__left">
+          <div class="pill">
+            <span class="dot"></span>
+            THREAT MAP LIVE • STREAM • TRIAGE • PRIORISATION
+          </div>
+
+          <h1>Threat Map Live</h1>
+          <p class="lead">
+            Une vue <strong>élite</strong> des signaux de menace en continu — <em>mode simulation</em> (aucune donnée interne exposée).
+            Objectif : visibilité → preuve → décision.
+          </p>
+
+          <div class="cta">
+            <button class="btn btn--primary" id="btnStart">▶ Lancer le stream</button>
+            <button class="btn btn--soft" id="btnPause">⏸ Pause</button>
+            <button class="btn btn--ghost" id="btnExport">⤓ Export (JSON)</button>
+          </div>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="stat__k"><span class="kdot kdot--ok"></span> <span id="threatLevel">MED</span></div>
+              <div class="stat__l">Threat level</div>
+            </div>
+            <div class="stat">
+              <div class="stat__k">⟡ <span id="signalsPerMin">42</span>/min</div>
+              <div class="stat__l">Signals</div>
+            </div>
+            <div class="stat">
+              <div class="stat__k">⟡ <span id="regionsActive">17</span></div>
+              <div class="stat__l">Regions actives</div>
+            </div>
+          </div>
+
+          <div class="legend">
+            <div class="legend__row"><span class="lg lg--blue"></span> Info / bruit normal</div>
+            <div class="legend__row"><span class="lg lg--yellow"></span> Suspicious</div>
+            <div class="legend__row"><span class="lg lg--red"></span> Critical</div>
+          </div>
+
+          <div class="note">
+            <span class="note__tag">SAFE</span>
+            <span>Page “showcase” : événements générés / enrichis (IOC publics) — <strong>zéro IP interne</strong>, zéro VLAN, zéro détail client.</span>
+          </div>
+        </div>
+
+        <div class="hero__right">
+          <div class="panel mapPanel">
+            <div class="panel__bar">
+              <span class="t-dot red"></span>
+              <span class="t-dot yellow"></span>
+              <span class="t-dot green"></span>
+              <span class="panel__title">MAP — GLOBAL VIEW</span>
+
+              <div class="panel__tools">
+                <span class="chip chip--mini">SIM</span>
+                <span class="chip chip--mini" id="chipStatus">READY</span>
+              </div>
+            </div>
+
+            <div class="mapWrap">
+              <canvas id="map" width="1200" height="700" aria-label="Threat Map"></canvas>
+              <div class="mapOverlay">
+                <div class="overlayStat">
+                  <div class="overlayStat__k" id="nodesMonitored">128</div>
+                  <div class="overlayStat__l">Nodes monitored</div>
+                </div>
+                <div class="overlayStat">
+                  <div class="overlayStat__k" id="eventsToday">—</div>
+                  <div class="overlayStat__l">Events (session)</div>
+                </div>
+                <div class="overlayStat">
+                  <div class="overlayStat__k" id="blockedPct">—</div>
+                  <div class="overlayStat__l">Blocked</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel termPanel">
+            <div class="panel__bar">
+              <span class="t-dot red"></span>
+              <span class="t-dot yellow"></span>
+              <span class="t-dot green"></span>
+              <span class="panel__title">EVENTS — LIVE FEED</span>
+              <div class="panel__tools">
+                <span class="chip chip--mini" id="clock">--:--:--</span>
+              </div>
+            </div>
+
+            <div class="term">
+              <pre id="feed" aria-live="polite">
+[+] stream: READY • mode: SIMULATION • privacy: SAFE
+[+] rules: heuristics + ioc (public) • output: export.json
+[+] tip: "Demander un audit" pour une analyse réelle (autorisé).
+              </pre>
+            </div>
+
+            <div class="term__foot">
+              <span class="chip">Geo anomalies</span>
+              <span class="chip">Bruteforce patterns</span>
+              <span class="chip">Exploit attempts</span>
+              <span class="chip">Beaconing</span>
+              <span class="chip">DLP signals</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section__head">
+        <h2>Ce que le client comprend en 10 secondes</h2>
+        <p>Vision, vitesse, contrôle. Une interface “SOC-style” qui rassure la DG et aide le DSI à décider.</p>
+      </div>
+
+      <div class="cards miniCards">
+        <article class="card">
+          <h3>Visible</h3>
+          <p>Les signaux sont triés, contextualisés, affichés en clair. Pas de spam.</p>
+        </article>
+        <article class="card">
+          <h3>Actionnable</h3>
+          <p>Niveaux, priorités, “blocked / contained / investigating”.</p>
+        </article>
+        <article class="card">
+          <h3>Safe</h3>
+          <p>Cette page ne révèle aucune donnée interne. C’est du showcase.</p>
+        </article>
+      </div>
+
+      <div class="cta cta--center">
+        <a class="btn btn--primary" href="/#contact">Demander un audit</a>
+        <a class="btn btn--soft" href="/">Retour au site</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>© <span id="year"></span> 010101.co — Tous droits réservés.</div>
+    <div class="footer__sub">Built for speed • visibility • control</div>
+  </footer>
+
+  <div class="mobileNav" id="mobileNav">
+    <a href="/">Accueil</a>
+    <a class="active" href="threat-map.html">Threat Map Live</a>
+    <a href="/#services">Services</a>
+    <a href="/#contact">Demander un audit</a>
+  </div>
+
+  <script src="threat-map.js"></script>
+</body>
+</html>
