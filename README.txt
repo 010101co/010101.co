@@ -1,21 +1,19 @@
 # 010101.co — Threat Map Live (Elite)
 
-Contenu du pack :
-- threat-map.html
-- threat-map.css
-- threat-map.js
-- assets/logo.png (à remplacer par TON logo)
-- assets/favicon.png (optionnel)
+## Contenu
+- `threat-map.html` : page Threat Map Live (Elite) — responsive (PC + mobile)
+- `threat-map.js` : simulation + map animée + feed + export JSON + SOC fullscreen
+- `style.css` : style global (neon/elite)
+- `app.js` : menu + FX + boot overlay
+- `assets/logo.png` : votre logo (si présent)
 
-## Installation (GitHub Pages)
-1) Uploade ces fichiers à la racine du repo (même niveau que index.html).
-2) Mets ton logo dans assets/logo.png
-3) Ouvre : https://010101.co/threat-map.html
+## Installation GitHub Pages
+1. Dézipper puis uploader **tous** les fichiers à la racine du repo.
+2. Vérifier que GitHub Pages pointe sur la branche `main` et `/ (root)`.
+3. URL:
+   - Accueil: `https://010101.co/`
+   - Threat Map: `https://010101.co/threat-map.html`
 
-## Ajouter au menu (index.html)
-Ajoute un lien :
-<a href="threat-map.html">Threat Map Live</a>
-
-## Notes sécurité
-- Mode SIMULATION SAFE : aucune IP, VLAN, info interne ou client.
-- Les événements sont générés avec un style SOC crédible.
+## Notes
+- Showcase uniquement : aucune donnée interne / client.
+- Le bouton `Export (JSON)` télécharge une session simulée.

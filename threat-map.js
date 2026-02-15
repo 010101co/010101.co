@@ -1,346 +1,412 @@
-// 010101.co — Threat Map Live (Elite) — SIMULATION SAFE (no internal data)
+
 (() => {
-  const $ = (s) => document.querySelector(s);
-  const feedEl = $("#feed");
-  const yearEl = $("#year");
-  const clockEl = $("#clock");
-  const chipStatus = $("#chipStatus");
-  const btnStart = $("#btnStart");
-  const btnPause = $("#btnPause");
-  const btnExport = $("#btnExport");
-  const burger = document.querySelector(".burger");
-  const mobileNav = document.getElementById("mobileNav");
+  const $ = (q, el=document) => el.querySelector(q);
+  const $$ = (q, el=document) => Array.from(el.querySelectorAll(q));
 
-  const threatLevelEl = $("#threatLevel");
-  const signalsPerMinEl = $("#signalsPerMin");
-  const regionsActiveEl = $("#regionsActive");
-  const nodesMonitoredEl = $("#nodesMonitored");
-  const eventsTodayEl = $("#eventsToday");
-  const blockedPctEl = $("#blockedPct");
+  const startBtn = $('#startBtn');
+  const pauseBtn = $('#pauseBtn');
+  const exportBtn = $('#exportBtn');
+  const socModeBtn = $('#socModeBtn');
 
-  // Mobile menu
-  if (burger && mobileNav) {
-    burger.addEventListener("click", () => {
-      const open = mobileNav.style.display === "block";
-      mobileNav.style.display = open ? "none" : "block";
-      burger.setAttribute("aria-expanded", String(!open));
+  const levelText = $('#levelText');
+  const levelDot = $('#levelDot');
+  const signalsPerMin = $('#signalsPerMin');
+  const regionsActive = $('#regionsActive');
+  const blockedToday = $('#blockedToday');
+  const nodesMonitored = $('#nodesMonitored');
+  const eventsSession = $('#eventsSession');
+  const blockedRate = $('#blockedRate');
+
+  const clock = $('#clock');
+  const feed = $('#feed');
+  const chips = $$('.chip');
+
+  const simToggle = $('#simToggle');
+  const liveToggle = $('#liveToggle');
+
+  const mapCanvas = $('#map');
+  const mctx = mapCanvas ? mapCanvas.getContext('2d') : null;
+
+  let running = true;
+  let paused = false;
+  let liveMode = false;
+
+  // Filters
+  const enabled = new Set(['geo','bruteforce','exploit','beacon','dlp']);
+  chips.forEach(ch => {
+    ch.addEventListener('click', () => {
+      const key = ch.dataset.filter;
+      if (!key) return;
+      if (enabled.has(key)) enabled.delete(key); else enabled.add(key);
+      ch.classList.toggle('chip--on', enabled.has(key));
     });
-    mobileNav.addEventListener("click", (e) => {
-      if (e.target && e.target.tagName === "A") {
-        mobileNav.style.display = "none";
-        burger.setAttribute("aria-expanded", "false");
-      }
+  });
+
+  // SOC fullscreen mode
+  if (socModeBtn) {
+    socModeBtn.addEventListener('click', async () => {
+      document.body.classList.toggle('soc-mode');
+      try {
+        if (document.body.classList.contains('soc-mode')) {
+          await document.documentElement.requestFullscreen?.();
+        } else {
+          await document.exitFullscreen?.();
+        }
+      } catch(e) {}
     });
   }
 
-  // Time
-  yearEl.textContent = new Date().getFullYear();
-  const tickClock = () => {
-    const d = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    clockEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  // SIM/LIVE toggles (LIVE stays showcase: still simulation, but more intense)
+  const setMode = (isLive) => {
+    liveMode = isLive;
+    if (simToggle) simToggle.setAttribute('aria-pressed', isLive ? 'false' : 'true');
+    if (liveToggle) liveToggle.setAttribute('aria-pressed', isLive ? 'true' : 'false');
+    // Increase intensity in LIVE
+    baseRate = isLive ? 900 : 1400;
   };
-  setInterval(tickClock, 250);
+  simToggle?.addEventListener('click', () => setMode(false));
+  liveToggle?.addEventListener('click', () => setMode(true));
+
+  // Stream controls
+  startBtn?.addEventListener('click', () => { paused = false; pauseBtn?.setAttribute('aria-pressed','false'); });
+  pauseBtn?.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn?.setAttribute('aria-pressed', paused ? 'true' : 'false');
+  });
+
+  // Export JSON
+  exportBtn?.addEventListener('click', () => {
+    const payload = {
+      meta: { mode: liveMode ? 'LIVE_SHOWCASE' : 'SIMULATION_SAFE', generatedAt: new Date().toISOString(), note: 'No internal data. Showcase simulation.' },
+      session: sessionEvents.slice(-200),
+      kpi: snapshot(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `010101_threat_map_session_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // Clock
+  const tickClock = () => {
+    if (!clock) return;
+    const now = new Date();
+    clock.textContent = now.toLocaleTimeString('fr-FR', { hour12:false });
+  };
+  setInterval(tickClock, 1000);
   tickClock();
 
-  // Background ambient FX
-  const fx = document.getElementById("fx");
-  const fxCtx = fx.getContext("2d");
-  const fxDots = [];
-  const fxN = 60;
+  // KPI simulation base values
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const fmtInt = (n) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  let threatLevel = 2; // 1 low, 2 elevated, 3 high, 4 critical
+  let perMin = 34;
+  let regions = 16;
+  let blocked = 2847;
+  let nodes = 172;
+  let sessEvents = 17;
+  let blockPct = 88;
 
-  function resizeFx() {
-    fx.width = window.innerWidth * devicePixelRatio;
-    fx.height = window.innerHeight * devicePixelRatio;
+  // Update UI
+  function applyKpis() {
+    if (signalsPerMin) signalsPerMin.textContent = String(perMin);
+    if (regionsActive) regionsActive.textContent = String(regions);
+    if (blockedToday) blockedToday.textContent = fmtInt(blocked);
+    if (nodesMonitored) nodesMonitored.textContent = String(nodes);
+    if (eventsSession) eventsSession.textContent = String(sessEvents);
+    if (blockedRate) blockedRate.textContent = `${blockPct}%`;
+
+    const levels = ['LOW','ELEVATED','HIGH','CRITICAL'];
+    const colors = ['rgba(58,255,155,.95)','rgba(255,209,102,.95)','rgba(255,209,102,.95)','rgba(255,77,109,.95)'];
+    const glows = ['rgba(58,255,155,.12)','rgba(255,209,102,.12)','rgba(255,209,102,.12)','rgba(255,77,109,.12)'];
+
+    if (levelText) levelText.textContent = levels[threatLevel-1] || 'ELEVATED';
+    if (levelDot) {
+      levelDot.style.background = colors[threatLevel-1] || colors[1];
+      levelDot.style.boxShadow = `0 0 0 7px ${glows[threatLevel-1] || glows[1]}`;
+    }
   }
-  resizeFx();
-  window.addEventListener("resize", resizeFx);
 
-  for (let i = 0; i < fxN; i++) {
-    fxDots.push({
-      x: Math.random() * fx.width,
-      y: Math.random() * fx.height,
-      r: 0.8 + Math.random() * 1.8,
-      v: 0.25 + Math.random() * 0.7,
-      a: 0.08 + Math.random() * 0.15
+  // Events generator
+  const regionsList = [
+    {k:'NA', name:'North America'}, {k:'SA', name:'South America'}, {k:'EU', name:'Europe'},
+    {k:'AF', name:'Africa'}, {k:'ME', name:'Middle East'}, {k:'ASIA', name:'Asia'}, {k:'OC', name:'Oceania'},
+  ];
+
+  const types = {
+    geo: [
+      'geo anomaly detected', 'unusual ASN activity', 'suspicious routing change'
+    ],
+    bruteforce: [
+      'credential stuffing', 'bruteforce pattern', 'password spray'
+    ],
+    exploit: [
+      'exploit attempt', 'web exploit probe', 'vulnerability scan'
+    ],
+    beacon: [
+      'beaconing suspected', 'C2 heartbeat pattern', 'suspicious callback'
+    ],
+    dlp: [
+      'data egress spike', 'DLP policy hit', 'exfiltration heuristic'
+    ]
+  };
+
+  const verdicts = [
+    {k:'blocked', w: 55},
+    {k:'contained', w: 28},
+    {k:'investigating', w: 12},
+    {k:'escalated', w: 5},
+  ];
+
+  const sev = [
+    {k:'INFO', w: 40},
+    {k:'MED', w: 30},
+    {k:'HIGH', w: 20},
+    {k:'CRIT', w: 10},
+  ];
+
+  function pickWeighted(arr) {
+    const sum = arr.reduce((s,x)=>s+x.w,0);
+    let r = Math.random()*sum;
+    for (const x of arr) { r -= x.w; if (r<=0) return x.k; }
+    return arr[arr.length-1].k;
+  }
+
+  function randFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  const sessionEvents = [];
+  function addFeedLine(line) {
+    if (!feed) return;
+    feed.textContent += line + "\n";
+    // keep last ~180 lines
+    const lines = feed.textContent.split("\n");
+    if (lines.length > 190) feed.textContent = lines.slice(lines.length-190).join("\n");
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  // Map model
+  const cities = [
+    {name:'San Francisco', x:0.18, y:0.38, r:'NA'},
+    {name:'New York', x:0.29, y:0.34, r:'NA'},
+    {name:'Sao Paulo', x:0.34, y:0.68, r:'SA'},
+    {name:'Lagos', x:0.52, y:0.56, r:'AF'},
+    {name:'Abidjan', x:0.51, y:0.58, r:'AF'},
+    {name:'London', x:0.52, y:0.30, r:'EU'},
+    {name:'Frankfurt', x:0.56, y:0.30, r:'EU'},
+    {name:'Dubai', x:0.64, y:0.42, r:'ME'},
+    {name:'Mumbai', x:0.73, y:0.48, r:'ASIA'},
+    {name:'Singapore', x:0.79, y:0.60, r:'ASIA'},
+    {name:'Tokyo', x:0.88, y:0.40, r:'ASIA'},
+    {name:'Sydney', x:0.89, y:0.78, r:'OC'},
+  ];
+
+  const arcs = []; // active arcs
+  const pulses = []; // node pulses
+  function spawnArc() {
+    const a = randFrom(cities);
+    let b = randFrom(cities);
+    let tries = 0;
+    while (b === a && tries++ < 4) b = randFrom(cities);
+    const kindKeys = Object.keys(types).filter(k => enabled.has(k));
+    const kind = kindKeys.length ? randFrom(kindKeys) : 'geo';
+    const severity = pickWeighted(sev);
+    const action = pickWeighted(verdicts);
+
+    // arc intensity by severity
+    const amp = severity === 'CRIT' ? 1.0 : severity === 'HIGH' ? 0.8 : severity === 'MED' ? 0.55 : 0.35;
+    arcs.push({
+      from: a, to: b,
+      t: 0,
+      speed: (liveMode ? 0.016 : 0.012) + Math.random()*0.01,
+      amp,
+      kind,
+      severity,
+      action,
     });
-  }
 
-  function drawFx() {
-    fxCtx.clearRect(0,0,fx.width,fx.height);
-    fxCtx.globalCompositeOperation = "lighter";
-    for (const p of fxDots) {
-      p.y += p.v;
-      if (p.y > fx.height + 20) { p.y = -20; p.x = Math.random() * fx.width; }
-      const g = fxCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 14);
-      g.addColorStop(0, `rgba(0,212,255,${p.a})`);
-      g.addColorStop(1, "rgba(0,212,255,0)");
-      fxCtx.fillStyle = g;
-      fxCtx.beginPath();
-      fxCtx.arc(p.x, p.y, p.r * 10, 0, Math.PI * 2);
-      fxCtx.fill();
-    }
-    fxCtx.globalCompositeOperation = "source-over";
-    requestAnimationFrame(drawFx);
-  }
-  drawFx();
-
-  // Threat Map canvas
-  const map = document.getElementById("map");
-  const ctx = map.getContext("2d");
-  const W = () => map.width;
-  const H = () => map.height;
-
-  // Generic global nodes (NOT client locations)
-  const nodes = [
-    { name:"San Francisco", x:.14, y:.34, region:"NA" },
-    { name:"New York",      x:.24, y:.34, region:"NA" },
-    { name:"São Paulo",     x:.30, y:.72, region:"SA" },
-    { name:"London",        x:.49, y:.30, region:"EU" },
-    { name:"Paris",         x:.51, y:.32, region:"EU" },
-    { name:"Frankfurt",     x:.54, y:.30, region:"EU" },
-    { name:"Lagos",         x:.49, y:.58, region:"AF" },
-    { name:"Abidjan",       x:.47, y:.60, region:"AF" },
-    { name:"Johannesburg",  x:.58, y:.82, region:"AF" },
-    { name:"Dubai",         x:.66, y:.44, region:"ME" },
-    { name:"Mumbai",        x:.72, y:.52, region:"ASIA" },
-    { name:"Singapore",     x:.80, y:.64, region:"ASIA" },
-    { name:"Tokyo",         x:.89, y:.40, region:"ASIA" },
-    { name:"Sydney",        x:.90, y:.82, region:"OC" }
-  ];
-
-  const severities = [
-    { key:"INFO",  col:"rgba(0,212,255,.75)" },
-    { key:"MED",   col:"rgba(244,201,93,.85)" },
-    { key:"HIGH",  col:"rgba(255,120,90,.90)" },
-    { key:"CRIT",  col:"rgba(255,77,109,.92)" }
-  ];
-
-  const eventTypes = [
-    "scan detected",
-    "bruteforce pattern",
-    "exploit attempt",
-    "beaconing suspected",
-    "credential stuffing",
-    "malware callback",
-    "data exfil signal",
-    "abnormal geo velocity",
-    "suspicious DNS burst"
-  ];
-
-  let running = false;
-  let paused = false;
-  let events = [];
-  let attacks = [];
-  let total = 0;
-  let blocked = 0;
-
-  const pick = (arr) => arr[Math.floor(Math.random()*arr.length)];
-
-  function drawBackdrop() {
-    ctx.clearRect(0,0,W(),H());
-
-    const g = ctx.createRadialGradient(W()*0.55, H()*0.35, 40, W()*0.55, H()*0.35, W()*0.75);
-    g.addColorStop(0, "rgba(0,212,255,.10)");
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,W(),H());
-
-    // grid
-    ctx.save();
-    ctx.globalAlpha = 0.08;
-    ctx.strokeStyle = "rgba(234,242,255,.5)";
-    ctx.lineWidth = 1;
-    const step = 48;
-    for (let x=0; x<W(); x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H()); ctx.stroke(); }
-    for (let y=0; y<H(); y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W(),y); ctx.stroke(); }
-    ctx.restore();
-
-    // abstract blobs
-    const blobs = [
-      {x:.22, y:.38, r:150},
-      {x:.48, y:.34, r:170},
-      {x:.70, y:.50, r:190},
-      {x:.86, y:.72, r:120},
-      {x:.53, y:.78, r:140},
-    ];
-    for (const b of blobs){
-      const gg = ctx.createRadialGradient(W()*b.x, H()*b.y, 10, W()*b.x, H()*b.y, b.r);
-      gg.addColorStop(0, "rgba(234,242,255,.10)");
-      gg.addColorStop(1, "rgba(234,242,255,0)");
-      ctx.fillStyle = gg;
-      ctx.beginPath(); ctx.arc(W()*b.x, H()*b.y, b.r, 0, Math.PI*2); ctx.fill();
-    }
-  }
-
-  function drawNodes() {
-    for (const n of nodes){
-      const x = W()*n.x, y=H()*n.y;
-      const gg = ctx.createRadialGradient(x,y,0,x,y,22);
-      gg.addColorStop(0, "rgba(0,212,255,.35)");
-      gg.addColorStop(1, "rgba(0,212,255,0)");
-      ctx.fillStyle = gg;
-      ctx.beginPath(); ctx.arc(x,y,18,0,Math.PI*2); ctx.fill();
-
-      ctx.fillStyle = "rgba(234,242,255,.85)";
-      ctx.beginPath(); ctx.arc(x,y,3.2,0,Math.PI*2); ctx.fill();
-
-      ctx.font = "12px JetBrains Mono";
-      ctx.fillStyle = "rgba(234,242,255,.55)";
-      ctx.fillText(n.name, x+10, y-8);
-    }
-  }
-
-  function bezierPoint(a, b, t) {
-    const mx = (a.x + b.x) / 2;
-    const my = (a.y + b.y) / 2;
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const lift = 0.12 + Math.min(0.25, Math.hypot(dx,dy) * 0.18);
-    const cx = mx - dy * lift;
-    const cy = my + dx * lift;
-
-    const x = (1-t)*(1-t)*a.x + 2*(1-t)*t*cx + t*t*b.x;
-    const y = (1-t)*(1-t)*a.y + 2*(1-t)*t*cy + t*t*b.y;
-    return {x,y,cx,cy};
-  }
-
-  function drawAttack(attack, now) {
-    const start = {x:W()*attack.from.x, y:H()*attack.from.y};
-    const end   = {x:W()*attack.to.x,   y:H()*attack.to.y};
-    const mid = bezierPoint(start,end,0.5);
-
-    ctx.save();
-    ctx.globalAlpha = 0.65;
-    ctx.strokeStyle = attack.col;
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.quadraticCurveTo(mid.cx, mid.cy, end.x, end.y);
-    ctx.stroke();
-
-    const life = (now - attack.t0) / attack.ttl;
-    const t = Math.min(1, Math.max(0, life));
-    const p = bezierPoint(start,end,t);
-
-    const glow = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,26);
-    glow.addColorStop(0, attack.col);
-    glow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = glow;
-    ctx.globalAlpha = 0.85;
-    ctx.beginPath(); ctx.arc(p.x,p.y,10,0,Math.PI*2); ctx.fill();
-    ctx.restore();
-  }
-
-  function render(now) {
-    drawBackdrop();
-    attacks = attacks.filter(a => (now - a.t0) < a.ttl);
-    for (const a of attacks) drawAttack(a, now);
-    drawNodes();
-    requestAnimationFrame(render);
-  }
-  requestAnimationFrame(render);
-
-  function appendLine(line) {
-    const current = feedEl.textContent.trimEnd();
-    const lines = current.split("\n").slice(-18);
-    lines.push(line);
-    feedEl.textContent = lines.join("\n") + "\n";
-  }
-
-  function updateKpis() {
-    eventsTodayEl.textContent = String(total);
-    blockedPctEl.textContent = total ? `${Math.round((blocked/total)*100)}%` : "—";
-
-    const last = events.slice(-15);
-    const score = last.reduce((s,e) => {
-      if (e.sev.key === "CRIT") return s+4;
-      if (e.sev.key === "HIGH") return s+3;
-      if (e.sev.key === "MED") return s+2;
-      return s+1;
-    }, 0);
-
-    let lvl = "MED";
-    if (score > 42) lvl = "CRIT";
-    else if (score > 32) lvl = "HIGH";
-    else if (score < 22) lvl = "LOW";
-
-    threatLevelEl.textContent = lvl;
-    signalsPerMinEl.textContent = String(30 + Math.floor(Math.random()*30));
-    regionsActiveEl.textContent = String(12 + Math.floor(Math.random()*10));
-    nodesMonitoredEl.textContent = String(96 + Math.floor(Math.random()*96));
-  }
-
-  function genEvent() {
+    // pulse at destination
+    pulses.push({c:b, t:0, amp});
     const now = new Date();
-    const pad = (n) => String(n).padStart(2,"0");
-    const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const ts = now.toLocaleTimeString('fr-FR', { hour12:false });
 
-    const from = pick(nodes);
-    let to = pick(nodes);
-    while (to === from) to = pick(nodes);
+    const msg = randFrom(types[kind] || types.geo);
+    const line = `[${ts}] ${severity.padEnd(4)} • region: ${b.r.padEnd(4)} • ${msg.padEnd(22)} • ${action}`;
+    addFeedLine(line);
 
-    const sev = pick(severities);
-    const type = pick(eventTypes);
+    // Session log
+    sessionEvents.push({
+      ts: now.toISOString(),
+      severity, region: b.r, kind, msg, action,
+      from: a.name, to: b.name
+    });
 
-    const roll = Math.random();
-    const action =
-      roll < 0.55 ? "blocked" :
-      roll < 0.78 ? "contained" :
-      roll < 0.92 ? "investigating" :
-      "escalated";
+    // KPIs drift
+    sessEvents += 1;
+    perMin = clamp(perMin + (Math.random()>.6 ? 1 : 0) - (Math.random()>.75 ? 1 : 0), 18, 70);
+    regions = clamp(regions + (Math.random()>.83 ? 1 : 0) - (Math.random()>.88 ? 1 : 0), 6, 24);
+    blocked += Math.floor(1 + Math.random()*7);
 
-    total++;
-    if (action === "blocked" || action === "contained") blocked++;
+    // Threat level based on mix
+    if (severity === 'CRIT' && Math.random() > 0.45) threatLevel = clamp(threatLevel + 1, 1, 4);
+    if (severity === 'INFO' && Math.random() > 0.65) threatLevel = clamp(threatLevel - 1, 1, 4);
 
-    const ev = { time, region: to.region, sev, type, action, from:from.name, to:to.name };
-    events.push(ev);
-    appendLine(`[${ev.time}] ${ev.sev.key.padEnd(4)} • region: ${ev.region.padEnd(4)} • ${ev.type} • ${ev.action}`);
+    // blocked %
+    blockPct = clamp(blockPct + (action === 'blocked' ? 1 : -1)*(Math.random()>.7 ? 1 : 0), 71, 96);
 
-    attacks.push({ from, to, col: sev.col, t0: performance.now(), ttl: 1800 + Math.random()*1200 });
-    updateKpis();
+    // nodes monitored drift
+    nodes = clamp(nodes + (Math.random()>.9 ? 1 : 0) - (Math.random()>.92 ? 1 : 0), 120, 260);
+
+    applyKpis();
   }
 
-  function start() {
-    if (running) return;
-    running = true;
-    paused = false;
-    chipStatus.textContent = "LIVE";
-    appendLine(`[+] stream: START • mode: SIMULATION_SAFE • privacy: SAFE`);
-    setInterval(() => { if (!paused) genEvent(); }, 950);
+  function snapshot(){
+    return { threatLevel, perMin, regions, blocked, nodes, sessEvents, blockPct, liveMode };
   }
 
-  function pause() {
+  // Render map
+  function resizeMapForDPR() {
+    if (!mapCanvas || !mctx) return;
+    const rect = mapCanvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    mapCanvas.width = Math.floor(rect.width * dpr);
+    mapCanvas.height = Math.floor(rect.height * dpr);
+    mctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+
+  function drawGrid(w,h) {
+    mctx.save();
+    mctx.globalAlpha = 0.35;
+    mctx.strokeStyle = 'rgba(234,242,255,.08)';
+    mctx.lineWidth = 1;
+
+    const step = 36;
+    for (let x=0; x<w; x+=step) {
+      mctx.beginPath(); mctx.moveTo(x,0); mctx.lineTo(x,h); mctx.stroke();
+    }
+    for (let y=0; y<h; y+=step) {
+      mctx.beginPath(); mctx.moveTo(0,y); mctx.lineTo(w,y); mctx.stroke();
+    }
+    mctx.restore();
+  }
+
+  function colorBySeverity(sev) {
+    switch(sev){
+      case 'CRIT': return {stroke:'rgba(255,77,109,.95)', glow:'rgba(255,77,109,.22)'};
+      case 'HIGH': return {stroke:'rgba(255,209,102,.95)', glow:'rgba(255,209,102,.18)'};
+      case 'MED':  return {stroke:'rgba(55,215,255,.85)', glow:'rgba(55,215,255,.16)'};
+      default:     return {stroke:'rgba(55,215,255,.55)', glow:'rgba(55,215,255,.10)'};
+    }
+  }
+
+  function draw() {
+    if (!mapCanvas || !mctx) return;
+    const rect = mapCanvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+
+    mctx.clearRect(0,0,w,h);
+
+    // background glow
+    const g = mctx.createRadialGradient(w*0.55,h*0.28, 20, w*0.55,h*0.28, w*0.85);
+    g.addColorStop(0,'rgba(55,215,255,.12)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    mctx.fillStyle = g; mctx.fillRect(0,0,w,h);
+
+    drawGrid(w,h);
+
+    // nodes
+    for (const c of cities) {
+      const x = c.x*w, y = c.y*h;
+      mctx.fillStyle = 'rgba(234,242,255,.55)';
+      mctx.beginPath(); mctx.arc(x,y,2.2,0,Math.PI*2); mctx.fill();
+      mctx.fillStyle = 'rgba(234,242,255,.52)';
+      mctx.font = '11px ui-monospace, Menlo, Monaco, Consolas, "Courier New", monospace';
+      mctx.fillText(c.name, x+7, y-7);
+    }
+
+    // arcs
+    for (let i=arcs.length-1; i>=0; i--) {
+      const a = arcs[i];
+      a.t += a.speed;
+      const p = a.t;
+      const fx = a.from.x*w, fy = a.from.y*h;
+      const tx = a.to.x*w, ty = a.to.y*h;
+
+      // curve control point
+      const mx = (fx+tx)/2;
+      const my = (fy+ty)/2;
+      const dx = tx-fx, dy = ty-fy;
+      const len = Math.max(1, Math.hypot(dx,dy));
+      const nx = -dy/len, ny = dx/len;
+      const lift = (0.12 + a.amp*0.14) * len;
+      const cx = mx + nx*lift;
+      const cy = my + ny*lift;
+
+      const {stroke, glow} = colorBySeverity(a.severity);
+
+      // arc path
+      mctx.save();
+      mctx.lineWidth = 2;
+      mctx.strokeStyle = stroke;
+      mctx.shadowColor = glow;
+      mctx.shadowBlur = 16;
+
+      mctx.beginPath();
+      mctx.moveTo(fx,fy);
+      mctx.quadraticCurveTo(cx,cy, tx,ty);
+      mctx.stroke();
+
+      // moving dot along curve (quadratic bezier)
+      const t = clamp(p, 0, 1);
+      const bx = (1-t)*(1-t)*fx + 2*(1-t)*t*cx + t*t*tx;
+      const by = (1-t)*(1-t)*fy + 2*(1-t)*t*cy + t*t*ty;
+
+      mctx.shadowBlur = 18;
+      mctx.fillStyle = stroke;
+      mctx.beginPath(); mctx.arc(bx,by, 3.3, 0, Math.PI*2); mctx.fill();
+
+      mctx.restore();
+
+      if (a.t >= 1.0) arcs.splice(i,1);
+    }
+
+    // pulses
+    for (let i=pulses.length-1; i>=0; i--) {
+      const p = pulses[i];
+      p.t += 0.02;
+      const x = p.c.x*w, y = p.c.y*h;
+      const r = 8 + p.t*30;
+      const alpha = Math.max(0, 0.22 - p.t*0.22);
+      mctx.strokeStyle = `rgba(55,215,255,${alpha})`;
+      mctx.lineWidth = 2;
+      mctx.beginPath(); mctx.arc(x,y, r, 0, Math.PI*2); mctx.stroke();
+      if (p.t >= 1.0) pulses.splice(i,1);
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  // Event cadence
+  let baseRate = 1400;
+  function loop() {
     if (!running) return;
-    paused = !paused;
-    chipStatus.textContent = paused ? "PAUSED" : "LIVE";
-    appendLine(paused ? "[!] stream: PAUSED" : "[+] stream: RESUMED");
+    if (!paused) spawnArc();
+    const jitter = (liveMode ? 0.55 : 0.75) + Math.random()*0.65;
+    setTimeout(loop, Math.max(520, baseRate*jitter));
   }
 
-  function exportJson() {
-    const payload = {
-      exported_at: new Date().toISOString(),
-      mode: "SIMULATION_SAFE",
-      total_events: total,
-      blocked_events: blocked,
-      last_events: events.slice(-60),
-      note: "Export showcase. No internal data."
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "010101_threat-map_export.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    appendLine("[+] export: generated • file: 010101_threat-map_export.json");
+  // init
+  applyKpis();
+  if (mapCanvas && mctx) {
+    // Ensure proper sizing with CSS-driven width
+    const ro = new ResizeObserver(() => resizeMapForDPR());
+    ro.observe(mapCanvas);
+    resizeMapForDPR();
+    requestAnimationFrame(draw);
   }
 
-  btnStart.addEventListener("click", start);
-  btnPause.addEventListener("click", pause);
-  btnExport.addEventListener("click", exportJson);
+  // Start loop a bit after boot
+  setTimeout(loop, 900);
 
-  setTimeout(start, 900);
 })();
