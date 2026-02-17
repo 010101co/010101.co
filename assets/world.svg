@@ -14,7 +14,7 @@
   </defs>
 
   <rect width="1200" height="540" fill="url(#ocean)"/>
-  <g fill="#0a1622" stroke="#00d4ff" stroke-opacity="0.18" stroke-width="2">
+  <g fill="#0a1622" stroke="#ff3b30" stroke-opacity="0.18" stroke-width="2">
     <!-- Very stylized continent silhouettes (for UI display, not geographic accuracy) -->
     <path d="M120,165 C170,120 280,105 350,130 C415,152 430,208 365,240 C310,267 270,310 255,355 C238,410 165,412 140,360 C120,320 90,285 85,240 C80,210 95,185 120,165 Z"/>
     <path d="M315,305 C370,285 450,295 490,335 C525,370 508,430 455,465 C410,493 350,490 320,450 C292,412 285,332 315,305 Z"/>
