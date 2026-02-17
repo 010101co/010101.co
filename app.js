@@ -66,7 +66,7 @@
 
       // signal lines
       ctx.globalAlpha = 0.85;
-      ctx.strokeStyle = '#00d4ff';
+      ctx.strokeStyle = arc.color || '#ff3b30';
       ctx.lineWidth = 1.2;
       const lines = autoLight ? 5 : 9;
       for (let i=0;i<lines;i++){
@@ -123,6 +123,7 @@
   const toggleMap = $('#toggleMap');
   const toggleMotion = $('#toggleMotion');
   const mapWrap = $('#mapWrap');
+  const mapLabels = $('#mapLabels');
 
   let forceMotion = 'auto'; // auto|on|off
 
@@ -139,7 +140,8 @@
     // By default, loads a local JSON feed (replace with your own endpoint, e.g. /api/threatfeed).
     // IMPORTANT: For true real-time data, serve the feed from your backend (SIEM/IDS/CTI) or a proxy (Cloudflare Worker) due to CORS/rate limits.
     try{
-      const res = await fetch('api/sample_feed.json', {cache:'no-store'});
+      const FEED_URL = (window.__THREAT_FEED_URL__ || 'api/sample_feed.json');
+      const res = await fetch(FEED_URL, {cache:'no-store'});
       if (!res.ok) throw new Error('feed http ' + res.status);
       const data = await res.json();
       if (!data || !Array.isArray(data.events)) return null;
@@ -185,20 +187,54 @@
     while (feed.children.length > 10) feed.removeChild(feed.lastChild);
   }
 
+  
+  function setCountryLabels(activeCC){
+    if (!mapLabels) return;
+    if (!externalFeed || !externalFeed.country_coords) { mapLabels.innerHTML=''; return; }
+    const rect = mapWrap ? mapWrap.getBoundingClientRect() : null;
+    if (!rect) return;
+    const coords = externalFeed.country_coords;
+
+    // Always show some key labels + any active ones
+    const base = ['US','CA','BR','GB','FR','DE','ES','RU','TR','EG','NG','CI','ZA','IN','CN','JP','KR','AU','SA','AE'];
+    const wanted = new Set(base);
+    if (activeCC) activeCC.forEach(cc => wanted.add(cc));
+
+    mapLabels.innerHTML = '';
+    wanted.forEach(cc => {
+      const xy = coords[cc];
+      if (!xy) return;
+      const el = document.createElement('div');
+      el.className = 'maplabel' + (activeCC && activeCC.has(cc) ? ' maplabel--hot' : '');
+      el.textContent = cc;
+      el.style.left = (xy[0]*100) + '%';
+      el.style.top  = (xy[1]*100) + '%';
+      mapLabels.appendChild(el);
+    });
+  }
+
   function threatMap(canvas){
     const ctx = canvas.getContext('2d');
     let w=0,h=0, dpr= Math.min(2, window.devicePixelRatio || 1);
     const points = [];
     const arcs = [];
     const stars = [];
-    const hubs = [
-      {x:0.18, y:0.42},
-      {x:0.28, y:0.40},
-      {x:0.50, y:0.37},
-      {x:0.62, y:0.50},
-      {x:0.78, y:0.44},
-      {x:0.38, y:0.62},
+    let hubs = [
+      {x:0.18, y:0.42, cc:'US'},
+      {x:0.50, y:0.37, cc:'EU'},
+      {x:0.62, y:0.50, cc:'MEA'},
+      {x:0.78, y:0.44, cc:'APAC'},
+      {x:0.36, y:0.78, cc:'LATAM'},
     ];
+
+    function rebuildHubsFromFeed(){
+      if (!externalFeed || !externalFeed.country_coords) return;
+      const entries = Object.entries(externalFeed.country_coords);
+      if (!entries.length) return;
+      // Build hubs from country coordinates (normalized in [0..1])
+      hubs = entries.slice(0, 60).map(([cc,xy]) => ({cc, x: xy[0], y: xy[1]}));
+    }
+
     function rand(min,max){ return Math.random()*(max-min)+min; }
     function toXY(p){ return {x: p.x*w, y: p.y*h}; }
 
@@ -243,7 +279,7 @@
       ctx.clearRect(0,0,w,h);
 
       const grd = ctx.createRadialGradient(w*0.5, h*0.45, 10, w*0.5, h*0.45, Math.max(w,h)*0.65);
-      grd.addColorStop(0, 'rgba(0,212,255,0.08)');
+      grd.addColorStop(0, 'rgba(255,59,48,0.08)');
       grd.addColorStop(0.6, 'rgba(0,0,0,0)');
       grd.addColorStop(1, 'rgba(0,0,0,0.10)');
       ctx.fillStyle = grd;
@@ -268,7 +304,7 @@
         arc.t += arc.speed;
 
         ctx.globalAlpha = 0.18;
-        ctx.strokeStyle = '#00d4ff';
+        ctx.strokeStyle = arc.color || '#ff3b30';
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(arc.A.x, arc.A.y);
@@ -278,7 +314,7 @@
         const t = Math.min(1, arc.t);
         const P = quadPoint(arc.A, arc.mid, arc.B, t);
         ctx.globalAlpha = 0.85;
-        ctx.fillStyle = '#00d4ff';
+        ctx.fillStyle = arc.color || '#ff3b30';
         ctx.beginPath();
         ctx.arc(P.x, P.y, autoLight ? 2.1 : 2.8, 0, Math.PI*2);
         ctx.fill();
@@ -287,7 +323,7 @@
           ctx.globalAlpha = 0.32;
           ctx.beginPath();
           ctx.arc(arc.B.x, arc.B.y, autoLight ? 10 : 14, 0, Math.PI*2);
-          ctx.strokeStyle = 'rgba(0,212,255,0.55)';
+          ctx.strokeStyle = 'rgba(255,59,48,0.55)';
           ctx.lineWidth = 1;
           ctx.stroke();
         }

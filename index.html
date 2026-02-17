@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#070a0f" />
+  <title>010101.co — Cyber Intelligence • Offensive Security • Absolute Control</title>
+  <meta name="description" content="010101.co — Cyber Intelligence • Offensive Security • Absolute Control. Threat intelligence, offensive security, SOC, incident response." />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/soc.webp" as="image" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg"></div>
+  <header class="header">
+    <div class="header__inner container">
+      <a class="brand" href="#top" aria-label="010101.co">
+        <img src="assets/logo.svg" alt="010101.co" class="brand__logo" />
+        <div class="brand__text">
+          <div class="brand__name">010101.co</div>
+          <div class="brand__tag">CYBER INTELLIGENCE • OFFENSIVE SECURITY • ABSOLUTE CONTROL</div>
+        </div>
+      </a>
+      <nav class="nav">
+        <a href="#services">Services</a>
+        <a href="#threatmap">Threat Map Live</a>
+        <a href="#method">Méthode</a>
+        <a href="#offers">Offres</a>
+        <a class="btn btn--ghost" href="#contact">Contact</a>
+        <a class="btn btn--primary" href="#contact">Demander un audit</a>
+      </nav>
+      <button class="burger" aria-label="Menu" aria-expanded="false"><span class="burger__txt">---</span></button>
+    </div>
+    <div class="mobilemenu container" hidden>
+      <a href="#services">Services</a>
+      <a href="#threatmap">Threat Map Live</a>
+      <a href="#method">Méthode</a>
+      <a href="#offers">Offres</a>
+      <a href="#contact" class="btn btn--ghost">Contact</a>
+      <a href="#contact" class="btn btn--primary">Demander un audit</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container hero__grid">
+        <div class="hero__copy">
+          <div class="kicker">Cyber Intelligence • Offensive Security</div>
+          <h1>Nous voyons avant qu’ils n’agissent.</h1>
+          <p>
+            010101.co déploie une cybersécurité de niveau élite : renseignement, opérations offensives,
+            SOC & détection, réponse à incident. Notre objectif : <strong>contrôler</strong> et <strong>neutraliser</strong> les menaces.
+          </p>
+          <div class="hero__cta">
+            <a class="btn btn--primary" href="#contact">Demander un audit</a>
+            <a class="btn btn--ghost" href="#threatmap">Voir Threat Map Live</a>
+          </div>
+          <div class="trustline">
+            <span class="dot"></span>
+            <span>Basé à Abidjan • Opérations à distance • Disponibilité 24/7</span>
+          </div>
+        </div>
+
+        <aside class="hero__panel" aria-label="SOC Live panel">
+          <div class="panel__head">
+            <div class="pill">SOC LIVE</div>
+            <div class="pill pill--muted" id="perfPill">Mode: Auto</div>
+          </div>
+          <div class="panel__body">
+            <canvas id="socCanvas" aria-label="SOC animation" role="img"></canvas>
+            <div class="panel__overlay">
+              <div class="overlay__title">Absolute Control</div>
+              <div class="overlay__sub">Alerts • Hunt • Contain • Report</div>
+            </div>
+          </div>
+          <div class="panel__foot">
+            <div class="stat"><span class="stat__k">Incidents</span><span class="stat__v" id="statInc">—</span></div>
+            <div class="stat"><span class="stat__k">Hunts</span><span class="stat__v" id="statHun">—</span></div>
+            <div class="stat"><span class="stat__k">Contain</span><span class="stat__v" id="statCon">—</span></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="services" class="section">
+      <div class="container">
+        <h2>Services</h2>
+        <p class="muted">Des prestations conçues pour les infrastructures critiques, les groupes et les PME exigeantes.</p>
+        <div class="cards">
+          <article class="card"><h3>Threat Intelligence</h3><p>Veille, IOC, campagnes actives, corrélation et priorisation des risques.</p></article>
+          <article class="card"><h3>Offensive Security</h3><p>Pentest, Red Team, exploitation contrôlée, validation des défenses.</p></article>
+          <article class="card"><h3>SOC Design & Deployment</h3><p>Architecture SOC, SIEM, EDR, playbooks, dashboards et alerting.</p></article>
+          <article class="card"><h3>Incident Response</h3><p>Containment, forensic, éradication, RCA, rapport exécutif & technique.</p></article>
+          <article class="card"><h3>Zero Trust & Segmentation</h3><p>Micro-segmentation, MFA, policies, durcissement et contrôle d’accès.</p></article>
+          <article class="card"><h3>Audit & Compliance</h3><p>Audit express, ISO, conformité, gouvernance, plans d’actions et preuves.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="threatmap" class="section section--dark">
+      <div class="container">
+        <div class="section__head">
+          <div>
+            <h2>Threat Map Live</h2>
+            <p class="muted">Visualisation temps réel.</p>
+          </div>
+          </div>
+
+        <div class="mapwrap" id="mapWrap">
+
+          <div class="mapsvg" aria-hidden="true">
+            <img src="assets/world.svg" alt="" />
+          </div>
+          <div class="maplabels" id="mapLabels" aria-hidden="true"></div>
+
+          <canvas id="mapCanvas" aria-label="Threat map live" role="img"></canvas>
+          <div class="maphud">
+            <div class="hud__row">
+              <div class="hud__pill">GLOBAL FEED</div>
+              <div class="hud__pill hud__pill--muted" id="mapMode">Mode: Auto</div>
+            </div>
+            <div class="feed" id="feed" aria-label="Live feed"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="method" class="section">
+      <div class="container">
+        <h2>Méthode</h2>
+        <div class="steps">
+          <div class="step"><div class="step__n">01</div><div class="step__t">Cadrage & périmètre</div><div class="step__d">Objectifs, risques, surface, règles d’engagement.</div></div>
+          <div class="step"><div class="step__n">02</div><div class="step__t">Visibilité</div><div class="step__d">Inventaire, logs, posture, baselines.</div></div>
+          <div class="step"><div class="step__n">03</div><div class="step__t">Détection & Hunt</div><div class="step__d">IOC, corrélation, détection proactive.</div></div>
+          <div class="step"><div class="step__n">04</div><div class="step__t">Preuves & Rapport</div><div class="step__d">Executive summary + preuve technique exploitable.</div></div>
+          <div class="step"><div class="step__n">05</div><div class="step__t">Remediation & Re-test</div><div class="step__d">Correctifs, durcissement, revalidation.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="offers" class="section section--dark">
+      <div class="container">
+        <h2>Offres</h2>
+        <div class="pricing">
+          <div class="price">
+            <div class="price__name">Starter</div>
+            <div class="price__desc">Audit express + recommandations prioritaires.</div>
+            <ul><li>Scan & posture</li><li>Rapport exécutif</li><li>Plan d’actions</li></ul>
+            <a class="btn btn--ghost" href="#contact">Demander un devis</a>
+          </div>
+          <div class="price price--hot">
+            <div class="badge">Recommandé</div>
+            <div class="price__name">Elite</div>
+            <div class="price__desc">Pentest + validation sécurité + re-test.</div>
+            <ul><li>Offensive Security</li><li>Preuves exploitables</li><li>Re-test inclus</li></ul>
+            <a class="btn btn--primary" href="#contact">Demander un devis</a>
+          </div>
+          <div class="price">
+            <div class="price__name">Black</div>
+            <div class="price__desc">SOC + Threat Intelligence + opérations continues.</div>
+            <ul><li>SOC Design/Run</li><li>Threat Intel</li><li>24/7 option</li></ul>
+            <a class="btn btn--ghost" href="#contact">Parler au SOC</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="section">
+      <div class="container">
+        <h2>Contact</h2>
+        <p class="muted">Pour une demande d’audit, un devis ou un déploiement SOC.</p>
+        <div class="contactgrid">
+          <div class="contactcard"><div class="contactcard__k">Site</div><div class="contactcard__v"><a href="https://010101.co" target="_blank" rel="noreferrer">010101.co</a></div></div>
+          <div class="contactcard"><div class="contactcard__k">WhatsApp Business</div><div class="contactcard__v"><a href="https://wa.me/2250717171707" target="_blank" rel="noreferrer">+225 07 17 17 17 07</a></div></div>
+          <div class="contactcard"><div class="contactcard__k">Email</div><div class="contactcard__v"><a href="mailto:contact@010101.co">contact@010101.co</a></div></div>
+          <div class="contactcard"><div class="contactcard__k">Localisation</div><div class="contactcard__v">Abidjan, Côte d’Ivoire • Remote</div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__left">
+        <div class="footer__brand">010101.co</div>
+        <div class="footer__muted">Cyber Intelligence • Offensive Security • Absolute Control</div>
+      </div>
+      <div class="footer__right">
+        <a href="#top">Haut</a>
+        <a href="#services">Services</a>
+        <a href="#threatmap">Threat Map</a>
+        <a href="#contact">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
